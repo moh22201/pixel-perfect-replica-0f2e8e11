@@ -8,21 +8,20 @@ import { MAP, hash, terrainAt } from "./world";
 import { P, setCtx, flat, line, poly, ellipse } from "./draw";
 import { buildingSprite, cropSprite } from "./sprites";
 
-const VIEW_W = 1500;
-const VIEW_H = 850;
-const MIN_ZOOM = 0.28;
-const MAX_ZOOM = 0.78;
-const ORIGIN_X = VIEW_W / 2;
-const ORIGIN_Y = 86;
+const MIN_ZOOM = 0.24;
+const MAX_ZOOM = 1.35;
 
 function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, selected: number | null, zoom: number, camera: { x: number; y: number }) {
+  const VIEW_W = Math.max(1, canvas.clientWidth);
+  const VIEW_H = Math.max(1, canvas.clientHeight);
+  const ORIGIN_X = VIEW_W / 2;
+  const ORIGIN_Y = Math.max(90, VIEW_H * 0.16);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  canvas.width = VIEW_W * dpr;
-  canvas.height = VIEW_H * dpr;
-  canvas.style.width = "100%";
-  canvas.style.height = "100%";
+  const pixelWidth = Math.round(VIEW_W * dpr);
+  const pixelHeight = Math.round(VIEW_H * dpr);
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) { canvas.width = pixelWidth; canvas.height = pixelHeight; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, VIEW_W, VIEW_H);
   const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
@@ -31,16 +30,25 @@ function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, sel
   sky.addColorStop(1, "#a8ce83");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  // Distant rolling hills and soft tree lines create a continuous landscape beyond the town.
-  ctx.save();
-  ctx.globalAlpha = 0.72;
-  for (let i = 0; i < 9; i++) {
-    const x = i * 205 - 70;
-    const y = 92 + (i % 3) * 34;
-    ctx.fillStyle = ["#86bd82", "#a2cc88", "#78b47d"][i % 3];
-    ctx.beginPath(); ctx.ellipse(x, y, 190, 88 + (i % 2) * 24, 0, 0, Math.PI * 2); ctx.fill();
+  // Layered natural foothills with curved ridgelines and atmospheric depth.
+  const hillColors = ["#9fc58f", "#82b27c", "#6f9f70"];
+  for (let layer = 0; layer < 3; layer++) {
+    ctx.beginPath();
+    ctx.moveTo(0, VIEW_H * (0.19 + layer * 0.055));
+    for (let x = 0; x <= VIEW_W + 80; x += 80) {
+      const y = VIEW_H * (0.16 + layer * 0.055) + Math.sin(x * 0.006 + layer * 1.7) * (24 + layer * 8) + Math.sin(x * 0.013 + layer) * 11;
+      ctx.quadraticCurveTo(x - 35, y - 24, x, y);
+    }
+    ctx.lineTo(VIEW_W, VIEW_H * 0.42); ctx.lineTo(0, VIEW_H * 0.42); ctx.closePath();
+    ctx.fillStyle = hillColors[layer]; ctx.globalAlpha = 0.62 + layer * 0.1; ctx.fill();
   }
-  ctx.restore();
+  ctx.globalAlpha = 1;
+  // Irregular distant treeline, not geometric mountain icons.
+  for (let x = -12; x < VIEW_W + 30; x += 24) {
+    const y = VIEW_H * 0.245 + Math.sin(x * 0.009) * 13;
+    ctx.fillStyle = x % 3 ? "#477e53" : "#568c59";
+    ctx.beginPath(); ctx.arc(x, y, 15 + (Math.sin(x * 0.04) + 1) * 5, Math.PI, Math.PI * 2); ctx.fill();
+  }
   ctx.save();
   ctx.translate(ORIGIN_X + camera.x, ORIGIN_Y + camera.y);
   ctx.scale(zoom, zoom);
@@ -51,19 +59,8 @@ function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, sel
     [P(-7, -5), P(MAP + 7, -5), P(MAP + 10, MAP + 5), P(-6, MAP + 8)],
     "#9bcf78", "#7eb365", 5,
   );
-  // Distant mountain silhouettes sit beyond the playable land.
-  for (let i = 0; i < 7; i++) {
-    const x = i * 8 + 1;
-    const p = P(x, -3, 0);
-    poly(
-      [{ x: p.x - 150, y: p.y + 18 }, { x: p.x, y: p.y - 170 - (i % 3) * 28 }, { x: p.x + 155, y: p.y + 18 }],
-      i % 2 ? "#8eb8a0" : "#a1c4a0", "#83aa91", 3,
-    );
-    poly(
-      [{ x: p.x - 48, y: p.y - 92 }, { x: p.x, y: p.y - 170 - (i % 3) * 28 }, { x: p.x + 48, y: p.y - 92 }],
-      "#e8f1dc",
-    );
-  }
+  // The playable land remains in a clear isometric view, framed by the natural landscape.
+
 
   // Soft landscape backdrop and every terrain tile in the enlarged city map.
   for (let y = 0; y < MAP; y++) {
@@ -169,10 +166,12 @@ export default function GameScene() {
   const [now, setNow] = useState(Date.now());
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<"actions" | "storage">("actions");
-  const [zoom, setZoom] = useState(0.39);
+  const [zoom, setZoom] = useState(0.52);
   const [camera, setCamera] = useState({ x: 0, y: 0 });
   const [panelOpen, setPanelOpen] = useState(false);
-  const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{ startX: number; startY: number; startCameraX: number; startCameraY: number; startDistance: number; startZoom: number; startMidX: number; startMidY: number } | null>(null);
+  const didGestureRef = useRef(false);
 
   useEffect(() => {
     setGame(load());
@@ -203,10 +202,13 @@ export default function GameScene() {
   const onCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!game) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const sx = (event.clientX - rect.left) * (VIEW_W / rect.width);
-    const sy = (event.clientY - rect.top) * (VIEW_H / rect.height);
-    const px = (sx - ORIGIN_X - camera.x) / zoom;
-    const py = (sy - ORIGIN_Y - camera.y) / zoom;
+    if (didGestureRef.current) { didGestureRef.current = false; return; }
+    const sx = event.clientX - rect.left;
+    const sy = event.clientY - rect.top;
+    const originX = rect.width / 2;
+    const originY = Math.max(90, rect.height * 0.16);
+    const px = (sx - originX - camera.x) / zoom;
+    const py = (sy - originY - camera.y) / zoom;
     const u = (px / 32 + py / 16) / 2;
     const v = (py / 16 - px / 32) / 2;
     const hit = buildingAt(game, Math.floor(u), Math.floor(v));
@@ -243,10 +245,48 @@ export default function GameScene() {
           ref={canvasRef}
           onClick={onCanvasClick}
           onWheel={e => { e.preventDefault(); setZoom(z => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z * (e.deltaY < 0 ? 1.1 : 0.9)))); }}
-          onPointerDown={e => { if (e.button !== 0) return; dragRef.current = { x: e.clientX, y: e.clientY, cx: camera.x, cy: camera.y }; }}
-          onPointerMove={e => { if (dragRef.current && (e.buttons & 1)) setCamera({ x: dragRef.current.cx + e.clientX - dragRef.current.x, y: dragRef.current.cy + e.clientY - dragRef.current.y }); }}
-          onPointerUp={() => { dragRef.current = null; }}
-          onPointerLeave={() => { dragRef.current = null; }}
+          onPointerDown={e => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const pts = [...pointersRef.current.values()];
+            didGestureRef.current = false;
+            if (pts.length === 1) gestureRef.current = { startX: pts[0].x, startY: pts[0].y, startCameraX: camera.x, startCameraY: camera.y, startDistance: 0, startZoom: zoom, startMidX: pts[0].x, startMidY: pts[0].y };
+            else if (pts.length === 2) {
+              const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+              gestureRef.current = { startX: 0, startY: 0, startCameraX: camera.x, startCameraY: camera.y, startDistance: Math.max(1, Math.hypot(dx, dy)), startZoom: zoom, startMidX: (pts[0].x + pts[1].x) / 2, startMidY: (pts[0].y + pts[1].y) / 2 };
+            }
+          }}
+          onPointerMove={e => {
+            if (!pointersRef.current.has(e.pointerId)) return;
+            pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const pts = [...pointersRef.current.values()], g = gestureRef.current;
+            if (!g) return;
+            if (pts.length >= 2) {
+              const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+              const distance = Math.max(1, Math.hypot(dx, dy));
+              const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const nextZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, g.startZoom * distance / g.startDistance));
+              const factor = nextZoom / g.startZoom;
+              const anchorX = g.startMidX - rect.left - rect.width / 2 - g.startCameraX;
+              const anchorY = g.startMidY - rect.top - Math.max(90, rect.height * 0.16) - g.startCameraY;
+              setZoom(nextZoom);
+              setCamera({ x: midX - g.startMidX + g.startCameraX + anchorX * (1 - factor), y: midY - g.startMidY + g.startCameraY + anchorY * (1 - factor) });
+              didGestureRef.current = true;
+            } else if (pts.length === 1) {
+              const dx = pts[0].x - g.startX, dy = pts[0].y - g.startY;
+              if (Math.abs(dx) + Math.abs(dy) > 5) didGestureRef.current = true;
+              setCamera({ x: g.startCameraX + dx, y: g.startCameraY + dy });
+            }
+          }}
+          onPointerUp={e => {
+            pointersRef.current.delete(e.pointerId);
+            const pts = [...pointersRef.current.values()];
+            if (pts.length === 1) gestureRef.current = { startX: pts[0].x, startY: pts[0].y, startCameraX: camera.x, startCameraY: camera.y, startDistance: 0, startZoom: zoom, startMidX: pts[0].x, startMidY: pts[0].y };
+            else gestureRef.current = null;
+          }}
+          onPointerCancel={e => { pointersRef.current.delete(e.pointerId); gestureRef.current = null; }}
           aria-label="Interactive isometric town map"
           style={{ display: "block", width: "100%", height: "100%", cursor: "grab", touchAction: "none" }}
         />
@@ -258,14 +298,7 @@ export default function GameScene() {
 
       {notice && <div style={{ position: "absolute", top: 56, left: 14, padding: "6px 10px", borderRadius: 10, background: "#fffdf0eF", fontSize: 12, fontWeight: 700, color: "#6d8050" }}>{notice}</div>}
 
-      <div style={{ position: "absolute", right: 14, top: 14, display: "flex", flexDirection: "column", gap: 7, zIndex: 3 }}>
-        <ActionButton onClick={() => setZoom(z => Math.min(MAX_ZOOM, +(z * 1.18).toFixed(3)))}>＋ Zoom in</ActionButton>
-        <ActionButton onClick={() => setZoom(z => Math.max(MIN_ZOOM, +(z / 1.18).toFixed(3)))}>− Zoom out</ActionButton>
-        <ActionButton onClick={() => { setZoom(0.39); setCamera({ x: 0, y: 0 }); }}>◎ Reset view</ActionButton>
-        <ActionButton onClick={() => setPanelOpen(v => !v)}>{panelOpen ? "Hide panel" : "Open panel"}</ActionButton>
-      </div>
-
-      {panelOpen && <aside style={{ position: "absolute", right: 14, top: 166, width: "min(310px, calc(100vw - 28px))", maxHeight: "calc(100% - 180px)", overflow: "auto", background: "linear-gradient(160deg,#fffdf5f5,#f4e8ccf5)", border: "2px solid #d3bd8f", borderRadius: 18, boxShadow: "0 8px 24px #4b553344", padding: 13, backdropFilter: "blur(8px)" }}>
+      {panelOpen && <aside style={{ position: "absolute", right: 14, top: 14, width: "min(310px, calc(100vw - 28px))", maxHeight: "calc(100% - 180px)", overflow: "auto", background: "linear-gradient(160deg,#fffdf5f5,#f4e8ccf5)", border: "2px solid #d3bd8f", borderRadius: 18, boxShadow: "0 8px 24px #4b553344", padding: 13, backdropFilter: "blur(8px)" }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           <button onClick={() => setTab("actions")} style={{ flex: 1, border: 0, borderRadius: 10, padding: 8, background: tab === "actions" ? "#d7edbd" : "#eee5d2", color: "#5a563a", fontWeight: 800 }}>Building</button>
           <button onClick={() => setTab("storage")} style={{ flex: 1, border: 0, borderRadius: 10, padding: 8, background: tab === "storage" ? "#d7edbd" : "#eee5d2", color: "#5a563a", fontWeight: 800 }}>Barn</button>
@@ -312,6 +345,7 @@ export default function GameScene() {
       <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 7, flexWrap: "wrap" }}>
         <ActionButton onClick={() => { setSelected(null); setTab("actions"); setPanelOpen(false); }}>🗺️ Town</ActionButton>
         <ActionButton onClick={() => { setTab("storage"); setPanelOpen(true); }}>📦 Storage</ActionButton>
+        <ActionButton onClick={() => setPanelOpen(v => !v)}>{panelOpen ? "Close" : "Open"}</ActionButton>
       </div>
     </section>
   </main>;
