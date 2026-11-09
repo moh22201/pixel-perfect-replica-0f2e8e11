@@ -276,11 +276,11 @@ export function createInitialState(): GameState {
   B("cottage", 17, 18); B("cottage", 21, 18); B("cottage", 17, 22); B("townhouse", 24, 21); B("house", 27, 18); B("house", 29, 18);
   B("apartment", 27, 20); B("cottage", 29, 20); B("cottage", 30, 21); B("tree", 25, 18); B("flowers", 21, 22);
   B("house", 8, 18); B("cottage", 10, 18); B("cottage", 11, 18); B("townhouse", 12, 18); B("cottage", 8, 21); B("cottage", 9, 21);
-  B("school", 12, 19); B("tree", 15, 18); B("flowers", 10, 20); B("pine", 14, 22);
+  B("school", 13, 19); B("tree", 15, 18); B("flowers", 10, 20); B("pine", 14, 22);
   B("cottage", 20, 3); B("cottage", 21, 3); B("house", 22, 3); B("townhouse", 24, 3); B("house", 25, 3); B("cottage", 27, 3);
   B("apartment", 18, 6); B("cottage", 20, 6); B("house", 21, 6); B("cottage", 23, 6); B("park", 24, 6); B("tree", 26, 6); B("tree", 28, 5); B("pine", 29, 7);
   B("villa", 2, 18); B("cottage", 4, 18); B("cottage", 5, 18); B("cottage", 0, 21); B("tree", 5, 21); B("tree", 1, 15); B("pine", 4, 20);
-  B("tree", 10, 3); B("pine", 11, 7); B("tree", 2, 8); B("flowers", 12, 3); B("tree", 8, 6); B("pine", 9, 4);
+  B("tree", 10, 3); B("pine", 11, 7); B("tree", 2, 8); B("flowers", 12, 3); B("tree", 8, 7); B("pine", 9, 4);
   B("tree", 30, 5); B("flowers", 27, 7); B("pine", 31, 3); B("tree", 19, 15); B("pine", 24, 15); B("tree", 29, 15); B("flowers", 28, 15);
   // pre-plant a few fields at varied stages
   const now = Date.now();
