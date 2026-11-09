@@ -10,28 +10,62 @@ import { buildingSprite, cropSprite } from "./sprites";
 
 const VIEW_W = 1500;
 const VIEW_H = 850;
-const SCALE = 0.56;
+const MIN_ZOOM = 0.28;
+const MAX_ZOOM = 0.78;
 const ORIGIN_X = VIEW_W / 2;
-const ORIGIN_Y = 78;
+const ORIGIN_Y = 86;
 
-function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, selected: number | null) {
+function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, selected: number | null, zoom: number, camera: { x: number; y: number }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   canvas.width = VIEW_W * dpr;
   canvas.height = VIEW_H * dpr;
-  canvas.style.width = VIEW_W + "px";
-  canvas.style.height = VIEW_H + "px";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, VIEW_W, VIEW_H);
-  ctx.fillStyle = "#b8d9e8";
+  const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
+  sky.addColorStop(0, "#9ed8ed");
+  sky.addColorStop(0.58, "#d4e9c5");
+  sky.addColorStop(1, "#a8ce83");
+  ctx.fillStyle = sky;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  // Distant rolling hills and soft tree lines create a continuous landscape beyond the town.
   ctx.save();
-  ctx.translate(ORIGIN_X, ORIGIN_Y);
-  ctx.scale(SCALE, SCALE);
+  ctx.globalAlpha = 0.72;
+  for (let i = 0; i < 9; i++) {
+    const x = i * 205 - 70;
+    const y = 92 + (i % 3) * 34;
+    ctx.fillStyle = ["#86bd82", "#a2cc88", "#78b47d"][i % 3];
+    ctx.beginPath(); ctx.ellipse(x, y, 190, 88 + (i % 2) * 24, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.translate(ORIGIN_X + camera.x, ORIGIN_Y + camera.y);
+  ctx.scale(zoom, zoom);
   setCtx(ctx);
 
-  // Soft landscape backdrop and every terrain tile in the playable map.
+  // A broad, irregular meadow under the isometric city replaces the isolated square tile.
+  poly(
+    [P(-7, -5), P(MAP + 7, -5), P(MAP + 10, MAP + 5), P(-6, MAP + 8)],
+    "#9bcf78", "#7eb365", 5,
+  );
+  // Distant mountain silhouettes sit beyond the playable land.
+  for (let i = 0; i < 7; i++) {
+    const x = i * 8 + 1;
+    const p = P(x, -3, 0);
+    poly(
+      [{ x: p.x - 150, y: p.y + 18 }, { x: p.x, y: p.y - 170 - (i % 3) * 28 }, { x: p.x + 155, y: p.y + 18 }],
+      i % 2 ? "#8eb8a0" : "#a1c4a0", "#83aa91", 3,
+    );
+    poly(
+      [{ x: p.x - 48, y: p.y - 92 }, { x: p.x, y: p.y - 170 - (i % 3) * 28 }, { x: p.x + 48, y: p.y - 92 }],
+      "#e8f1dc",
+    );
+  }
+
+  // Soft landscape backdrop and every terrain tile in the enlarged city map.
   for (let y = 0; y < MAP; y++) {
     for (let x = 0; x < MAP; x++) {
       const terrain = terrainAt(x, y);
@@ -98,9 +132,22 @@ function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, sel
     }
   }
 
+  // Decorative groves, flower patches and rocks enrich the land beyond the first town blocks.
+  for (let y = 3; y < MAP - 3; y += 3) {
+    for (let x = 2; x < MAP - 3; x += 4) {
+      if (hash(x, y, 11) > 0.78 && terrainAt(x, y) === "grass" && !state.buildings.some(b => Math.abs(b.x - x) < 2 && Math.abs(b.y - y) < 2)) {
+        const p = P(x + 0.5, y + 0.5);
+        const r = 8 + hash(x, y, 12) * 8;
+        ellipse({ x: p.x + 5, y: p.y + 8 }, r * 1.3, r * 0.48, "rgba(65,105,54,0.22)");
+        ellipse({ x: p.x, y: p.y - r * 0.55 }, r, r * 0.72, hash(x, y, 13) > 0.5 ? "#4f9b58" : "#68ad5b");
+        ellipse({ x: p.x - 3, y: p.y - r * 0.75 }, r * 0.58, r * 0.42, "#91c96e");
+      }
+    }
+  }
+
   // A soft shoreline and decorative foam make the water edge legible.
   for (let y = 10; y < 19; y++) {
-    const p = P(32.9, y + 0.5);
+    const p = P(38.9, y + 0.5);
     line({ x: p.x, y: p.y - 10 }, { x: p.x, y: p.y + 10 }, "rgba(255,255,255,0.5)", 2);
   }
   ctx.restore();
@@ -122,6 +169,10 @@ export default function GameScene() {
   const [now, setNow] = useState(Date.now());
   const [notice, setNotice] = useState("");
   const [tab, setTab] = useState<"actions" | "storage">("actions");
+  const [zoom, setZoom] = useState(0.39);
+  const [camera, setCamera] = useState({ x: 0, y: 0 });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null);
 
   useEffect(() => {
     setGame(load());
@@ -130,8 +181,8 @@ export default function GameScene() {
   }, []);
 
   useEffect(() => {
-    if (game && canvasRef.current) drawWorld(canvasRef.current, game, now, selected);
-  }, [game, now, selected]);
+    if (game && canvasRef.current) drawWorld(canvasRef.current, game, now, selected, zoom, camera);
+  }, [game, now, selected, zoom, camera]);
 
   const update = useCallback((fn: (draft: GameState) => string | null | void) => {
     setGame(prev => {
@@ -154,8 +205,8 @@ export default function GameScene() {
     const rect = event.currentTarget.getBoundingClientRect();
     const sx = (event.clientX - rect.left) * (VIEW_W / rect.width);
     const sy = (event.clientY - rect.top) * (VIEW_H / rect.height);
-    const px = (sx - ORIGIN_X) / SCALE;
-    const py = (sy - ORIGIN_Y) / SCALE;
+    const px = (sx - ORIGIN_X - camera.x) / zoom;
+    const py = (sy - ORIGIN_Y - camera.y) / zoom;
     const u = (px / 32 + py / 16) / 2;
     const v = (py / 16 - px / 32) / 2;
     const hit = buildingAt(game, Math.floor(u), Math.floor(v));
@@ -185,9 +236,19 @@ export default function GameScene() {
 
     <div style={{ height: 5, background: "#b6a27b" }}><div style={{ height: "100%", width: (progress.frac * 100) + "%", background: "linear-gradient(90deg,#f5cf52,#8acb54)", transition: "width .3s" }} /></div>
 
-    <section style={{ height: "calc(100vh - 82px)", minHeight: 560, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, overflow: "auto", scrollbarColor: "#a6b987 #dce8cb" }}>
-        <canvas ref={canvasRef} onClick={onCanvasClick} aria-label="Interactive isometric town map" style={{ display: "block", cursor: "pointer", maxWidth: "none" }} />
+    <section style={{ height: "calc(100vh - 82px)", minHeight: 560, position: "relative", overflow: "hidden", touchAction: "none" }}>
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <canvas
+          ref={canvasRef}
+          onClick={onCanvasClick}
+          onWheel={e => { e.preventDefault(); setZoom(z => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z * (e.deltaY < 0 ? 1.1 : 0.9)))); }}
+          onPointerDown={e => { if (e.button !== 0) return; dragRef.current = { x: e.clientX, y: e.clientY, cx: camera.x, cy: camera.y }; }}
+          onPointerMove={e => { if (dragRef.current && (e.buttons & 1)) setCamera({ x: dragRef.current.cx + e.clientX - dragRef.current.x, y: dragRef.current.cy + e.clientY - dragRef.current.y }); }}
+          onPointerUp={() => { dragRef.current = null; }}
+          onPointerLeave={() => { dragRef.current = null; }}
+          aria-label="Interactive isometric town map"
+          style={{ display: "block", width: "100%", height: "100%", cursor: "grab", touchAction: "none" }}
+        />
       </div>
 
       <div style={{ position: "absolute", left: 14, top: 14, padding: "8px 12px", borderRadius: 14, background: "#fffdf0eF", border: "1px solid #d7c49a", boxShadow: "0 3px 12px #4b633322", fontSize: 12, fontWeight: 800, pointerEvents: "none" }}>
@@ -196,7 +257,14 @@ export default function GameScene() {
 
       {notice && <div style={{ position: "absolute", top: 56, left: 14, padding: "6px 10px", borderRadius: 10, background: "#fffdf0eF", fontSize: 12, fontWeight: 700, color: "#6d8050" }}>{notice}</div>}
 
-      <aside style={{ position: "absolute", right: 14, top: 14, width: "min(310px, calc(100vw - 28px))", maxHeight: "calc(100% - 28px)", overflow: "auto", background: "linear-gradient(160deg,#fffdf5f5,#f4e8ccf5)", border: "2px solid #d3bd8f", borderRadius: 18, boxShadow: "0 8px 24px #4b553344", padding: 13, backdropFilter: "blur(8px)" }}>
+      <div style={{ position: "absolute", right: 14, top: 14, display: "flex", flexDirection: "column", gap: 7, zIndex: 3 }}>
+        <ActionButton onClick={() => setZoom(z => Math.min(MAX_ZOOM, +(z * 1.18).toFixed(3)))}>＋ Zoom in</ActionButton>
+        <ActionButton onClick={() => setZoom(z => Math.max(MIN_ZOOM, +(z / 1.18).toFixed(3)))}>− Zoom out</ActionButton>
+        <ActionButton onClick={() => { setZoom(0.39); setCamera({ x: 0, y: 0 }); }}>◎ Reset view</ActionButton>
+        <ActionButton onClick={() => setPanelOpen(v => !v)}>{panelOpen ? "Hide panel" : "Open panel"}</ActionButton>
+      </div>
+
+      {panelOpen && <aside style={{ position: "absolute", right: 14, top: 166, width: "min(310px, calc(100vw - 28px))", maxHeight: "calc(100% - 180px)", overflow: "auto", background: "linear-gradient(160deg,#fffdf5f5,#f4e8ccf5)", border: "2px solid #d3bd8f", borderRadius: 18, boxShadow: "0 8px 24px #4b553344", padding: 13, backdropFilter: "blur(8px)" }}>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           <button onClick={() => setTab("actions")} style={{ flex: 1, border: 0, borderRadius: 10, padding: 8, background: tab === "actions" ? "#d7edbd" : "#eee5d2", color: "#5a563a", fontWeight: 800 }}>Building</button>
           <button onClick={() => setTab("storage")} style={{ flex: 1, border: 0, borderRadius: 10, padding: 8, background: tab === "storage" ? "#d7edbd" : "#eee5d2", color: "#5a563a", fontWeight: 800 }}>Barn</button>
@@ -239,7 +307,7 @@ export default function GameScene() {
             <span style={{ background: "#e4efcf", borderRadius: 9, padding: "6px 8px", fontSize: 11, fontWeight: 800 }}>🏡 {game.buildings.filter(b => BUILDINGS[b.def].kind === "house").length} homes</span>
           </div>
         </div>}
-      </aside>
+      </aside>}
       <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 7, flexWrap: "wrap" }}>
         <ActionButton onClick={() => { setSelected(null); setTab("actions"); }}>🗺️ Town</ActionButton>
         <ActionButton onClick={() => setTab("storage")}>📦 Storage</ActionButton>
