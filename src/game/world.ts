@@ -1,17 +1,17 @@
 // Static world layout: terrain, rail line, chunks. No React / rendering.
-export const MAP = 40;
+export const MAP = 56;
 export const CHUNK = 8;
 export const RAIL_Y = 1;
-export const SEA_X = 33;
+export const SEA_X = 39;
 
 export type Terrain = "grass" | "sea" | "sand" | "river" | "tarmac" | "dock" | "rail";
 
 export function terrainAt(x: number, y: number): Terrain {
-  if (x >= 33 && x <= 35 && y >= 11 && y <= 16) return "dock";
+  if (x >= 33 && x <= 36 && y >= 11 && y <= 16) return "dock";
   if (y === RAIL_Y) return "rail";
   if (x >= SEA_X) return "sea";
-  if (x === SEA_X - 1) return "sand";
-  if (y === 30 || y === 31) return "river";
+  if (x >= SEA_X - 2) return "sand";
+  if (y === 43 || y === 44) return "river";
   if (x <= 11 && (y === 5 || y === 6)) return "tarmac";
   return "grass";
 }
