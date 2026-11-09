@@ -5,7 +5,7 @@ import {
   levelOf, levelProgress, load, plant, save, startJob, stored, type Building, type GameState,
 } from "./state";
 import { MAP, hash, terrainAt } from "./world";
-import { P, setCtx, flat, line, poly, ellipse } from "./draw";
+import { P, setCtx, flat, line, poly, ellipse, tree, pine } from "./draw";
 import { buildingSprite, cropSprite } from "./sprites";
 
 const MIN_ZOOM = 0.24;
@@ -133,11 +133,9 @@ function drawWorld(canvas: HTMLCanvasElement, state: GameState, now: number, sel
   for (let y = 3; y < MAP - 3; y += 3) {
     for (let x = 2; x < MAP - 3; x += 4) {
       if (hash(x, y, 11) > 0.78 && terrainAt(x, y) === "grass" && !state.buildings.some(b => Math.abs(b.x - x) < 2 && Math.abs(b.y - y) < 2)) {
-        const p = P(x + 0.5, y + 0.5);
-        const r = 8 + hash(x, y, 12) * 8;
-        ellipse({ x: p.x + 5, y: p.y + 8 }, r * 1.3, r * 0.48, "rgba(65,105,54,0.22)");
-        ellipse({ x: p.x, y: p.y - r * 0.55 }, r, r * 0.72, hash(x, y, 13) > 0.5 ? "#4f9b58" : "#68ad5b");
-        ellipse({ x: p.x - 3, y: p.y - r * 0.75 }, r * 0.58, r * 0.42, "#91c96e");
+        const scale = 0.72 + hash(x, y, 12) * 0.5;
+        if (hash(x, y, 13) > 0.52) pine(x + 0.5, y + 0.5, scale);
+        else tree(x + 0.5, y + 0.5, scale, hash(x, y, 14) > 0.5 ? 1 : 0);
       }
     }
   }
