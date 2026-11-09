@@ -212,6 +212,7 @@ export default function GameScene() {
     const hit = buildingAt(game, Math.floor(u), Math.floor(v));
     setSelected(hit?.uid ?? null);
     setTab("actions");
+    setPanelOpen(Boolean(hit));
     setNotice(hit ? BUILDINGS[hit.def].name : "");
   };
 
@@ -309,8 +310,8 @@ export default function GameScene() {
         </div>}
       </aside>}
       <div style={{ position: "absolute", left: 14, bottom: 14, display: "flex", gap: 7, flexWrap: "wrap" }}>
-        <ActionButton onClick={() => { setSelected(null); setTab("actions"); }}>🗺️ Town</ActionButton>
-        <ActionButton onClick={() => setTab("storage")}>📦 Storage</ActionButton>
+        <ActionButton onClick={() => { setSelected(null); setTab("actions"); setPanelOpen(false); }}>🗺️ Town</ActionButton>
+        <ActionButton onClick={() => { setTab("storage"); setPanelOpen(true); }}>📦 Storage</ActionButton>
       </div>
     </section>
   </main>;
