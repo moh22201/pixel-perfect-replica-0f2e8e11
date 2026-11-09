@@ -18,8 +18,8 @@ export function terrainAt(x: number, y: number): Terrain {
 
 export const inMap = (x: number, y: number) => x >= 0 && y >= 0 && x < MAP && y < MAP;
 export const chunkKey = (x: number, y: number) => `${Math.floor(x / CHUNK)},${Math.floor(y / CHUNK)}`;
-export const INITIAL_CHUNKS = ["0,0", "1,0", "2,0", "3,0", "0,1", "1,1", "2,1", "3,1", "0,2", "1,2", "2,2", "3,2"];
-export const EXPANDABLE_CHUNKS = ["0,3", "1,3", "2,3", "3,3", "0,4", "1,4", "2,4", "3,4"];
+export const INITIAL_CHUNKS = Array.from({ length: 4 }, (_, y) => Array.from({ length: 6 }, (_, x) => `${x},${y}`)).flat();
+export const EXPANDABLE_CHUNKS = Array.from({ length: 2 }, (_, row) => Array.from({ length: 6 }, (_, x) => `${x},${row + 4}`)).flat();
 
 export function hash(x: number, y: number, s = 0) {
   let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
