@@ -307,7 +307,7 @@ export function save(s: GameState) { try { localStorage.setItem(SAVE_KEY, JSON.s
 export function load(): GameState {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) { const s = JSON.parse(raw) as GameState; if (s.v === 1) { refillOrders(s); return s; } }
+    if (raw) { const s = JSON.parse(raw) as GameState; if (s.v === 1) { s.unlocked = [...new Set([...INITIAL_CHUNKS, ...s.unlocked])]; refillOrders(s); return s; } }
   } catch { /* ignore */ }
   return createInitialState();
 }
