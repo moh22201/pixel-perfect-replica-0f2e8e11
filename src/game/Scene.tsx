@@ -7,6 +7,7 @@ import {
 import { MAP, hash, terrainAt } from "./world";
 import { P, setCtx, flat, line, poly, ellipse, tree, pine } from "./draw";
 import { buildingSprite, cropSprite } from "./sprites";
+import MineModel from "./MineModel";
 
 const MIN_ZOOM = 0.24;
 const MAX_ZOOM = 1.35;
@@ -239,6 +240,7 @@ export default function GameScene() {
 
     <section style={{ height: "calc(100vh - 82px)", minHeight: 560, position: "relative", overflow: "hidden", touchAction: "none" }}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <MineModel zoom={zoom} camera={camera} viewportHeight={typeof window !== "undefined" ? window.innerHeight - 82 : 600} />
         <canvas
           ref={canvasRef}
           onClick={onCanvasClick}
