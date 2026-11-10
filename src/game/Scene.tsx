@@ -7,7 +7,6 @@ import {
 import { MAP, hash, terrainAt } from "./world";
 import { P, setCtx, flat, line, poly, ellipse, tree, pine } from "./draw";
 import { buildingSprite, cropSprite } from "./sprites";
-import MineModel from "./MineModel";
 
 const MIN_ZOOM = 0.24;
 const MAX_ZOOM = 1.35;
@@ -289,7 +288,6 @@ export default function GameScene() {
           aria-label="Interactive isometric town map"
           style={{ display: "block", width: "100%", height: "100%", cursor: "grab", touchAction: "none" }}
         />
-        <MineModel zoom={zoom} camera={camera} viewportHeight={typeof window !== "undefined" ? window.innerHeight - 82 : 600} />
       </div>
 
       <div style={{ position: "absolute", left: 14, top: 14, padding: "8px 12px", borderRadius: 14, background: "#fffdf0eF", border: "1px solid #d7c49a", boxShadow: "0 3px 12px #4b633322", fontSize: 12, fontWeight: 800, pointerEvents: "none" }}>
